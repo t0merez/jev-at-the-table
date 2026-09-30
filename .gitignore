@@ -1,1 +1,5 @@
 jev-documentation.txt
+blackjack/logs/
+__pycache__/
+.pytest_cache/
+.env
