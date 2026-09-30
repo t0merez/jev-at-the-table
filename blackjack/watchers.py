@@ -37,8 +37,11 @@ class TableWatcher:
     ) -> None:
         pass
 
-    def end(self, final_bankrolls: Mapping[str, int]) -> None:
-        pass
+    def round_cancelled(self, round_no: int) -> None:
+        """The round was stopped part-way and undone; its bets were returned."""
+
+    def end(self, final_bankrolls: Mapping[str, int], stop_reason: str | None = None) -> None:
+        """stop_reason is None when the session ran to the end, otherwise why it stopped early."""
 
 
 def _cards(cards) -> str:
@@ -88,8 +91,11 @@ class TerminalPrinter(TableWatcher):
             for hand in result.hands:
                 print(f"  {name}: {_cards(hand.cards)} -> {hand.outcome.value} ({hand.net:+}), bankroll {result.bankroll_after}")
 
-    def end(self, final_bankrolls: Mapping[str, int]) -> None:
-        print("\nSession over")
+    def round_cancelled(self, round_no: int) -> None:
+        print(f"\nRound {round_no} cancelled; bets returned")
+
+    def end(self, final_bankrolls: Mapping[str, int], stop_reason: str | None = None) -> None:
+        print(f"\nSession stopped early: {stop_reason}" if stop_reason else "\nSession over")
         for name, final in final_bankrolls.items():
             start = self._start_bankrolls[name]
             print(f"  {name}: {start} -> {final} ({final - start:+})")

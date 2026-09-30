@@ -10,8 +10,8 @@ class Player(ABC):
         self.name = name
 
     @abstractmethod
-    def place_bet(self, view: BettingView) -> int:
-        """Return a whole-number bet within the limits in the view."""
+    def place_bet(self, view: BettingView) -> int | None:
+        """Return a whole-number bet within the limits in the view, or None to leave the table."""
 
     @abstractmethod
     def decide(self, view: DecisionView) -> Action:

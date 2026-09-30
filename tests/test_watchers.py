@@ -135,7 +135,7 @@ class Vandal(TableWatcher):
         self._try(lambda: results.clear())
         self._try(lambda: setattr(next(iter(results.values())), "bankroll_after", 0))
 
-    def end(self, final_bankrolls):
+    def end(self, final_bankrolls, stop_reason=None):
         self._try(lambda: final_bankrolls.update({"Alice": 0}))
 
 

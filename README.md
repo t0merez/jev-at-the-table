@@ -54,6 +54,13 @@ python main.py --jev --rounds 100
 
 Jev plays next to a basic-strategy bot, with no input needed. Every decision and every result is printed to the terminal, followed by each player's totals, and the whole session is saved to the log. `--bet N` sets the fixed bet for both players (default: the table minimum), and the options above work too.
 
+#### Stopping early
+
+- **Type `q` at the bet prompt** to leave the table. This ends the whole session.
+- **Press Ctrl+C at any time**, including during a Jev run.
+
+Either way, the unfinished round is cancelled and every player gets back the chips they had before it. Completed rounds count as normal. The log records a `round_cancelled` line, and `session_end` says why the session stopped in `stopped_early` (`null` when it ran to the end).
+
 #### Check the rules engine
 
 ```sh
@@ -69,7 +76,8 @@ Every session played with `main.py` writes a JSON Lines file to `blackjack/logs/
 - `session_start`: time, rules, players and starting bankrolls
 - `decision`: the full state a player saw and the action it took
 - `round`: dealer cards and every player's hands, outcomes and bankrolls
-- `session_end`: each player's hands, wins, losses, pushes, surrenders, net result and final bankroll
+- `round_cancelled`: a round that was stopped part-way and undone
+- `session_end`: each player's hands, wins, losses, pushes, surrenders, net result and final bankroll, plus `stopped_early`
 
 #### Tests
 

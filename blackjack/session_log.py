@@ -84,13 +84,17 @@ class SessionLog(TableWatcher):
             }
         )
 
-    def end(self, final_bankrolls: Mapping[str, int]) -> None:
+    def round_cancelled(self, round_no: int) -> None:
+        self._write({"event": "round_cancelled", "round": round_no})
+
+    def end(self, final_bankrolls: Mapping[str, int], stop_reason: str | None = None) -> None:
         players = {name: {**stats, "final_bankroll": final_bankrolls[name]} for name, stats in self._stats.items()}
         self._write(
             {
                 "event": "session_end",
                 "time": datetime.now().isoformat(timespec="seconds"),
                 "rounds": self._rounds,
+                "stopped_early": stop_reason,
                 "players": players,
             }
         )

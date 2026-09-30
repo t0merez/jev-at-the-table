@@ -6,6 +6,10 @@ a bet or an Action. The table checks every answer.
 House rules that aren't options in TableRules: the dealer peeks for
 blackjack, split aces get one card each, and a hand that reaches 21 stands
 automatically.
+
+Stopping: a player can leave by returning None from place_bet, and Ctrl+C
+works at any point. Either way the unfinished round is cancelled, everyone
+gets back what they had before it, and the session ends cleanly.
 """
 
 from types import MappingProxyType
@@ -18,6 +22,7 @@ from blackjack.api import (
     IllegalActionError,
     InvalidBetError,
     Outcome,
+    PlayerLeft,
     RoundResult,
 )
 from blackjack.cards import Shoe
@@ -46,6 +51,7 @@ class Table:
         self._playing: list[Seat] = []  # seats with a bet in the current round
         self._dealer = Hand()
         self._round_no = 0
+        self._bankrolls_before_round: dict[Seat, int] | None = None  # set while a round is unfinished
 
     def sit(self, player: Player, bankroll: int) -> None:
         if any(seat.player.name == player.name for seat in self._seats):
@@ -60,23 +66,46 @@ class Table:
     # ----- sessions and rounds -----
 
     def play_session(self, num_rounds: int) -> None:
-        """Play up to num_rounds rounds, stopping early if nobody can afford the minimum bet."""
+        """Play up to num_rounds rounds. Stops early if nobody can afford the minimum bet,
+        a player leaves, or the user presses Ctrl+C."""
         seats = tuple(SeatInfo(seat.player.name, type(seat.player).__name__, seat.bankroll) for seat in self._seats)
         for watcher in self.watchers:
             watcher.start(self.rules, seats)
-        for _ in range(num_rounds):
-            if not any(seat.bankroll >= self.rules.min_bet for seat in self._seats):
-                break
-            self.play_round()
+        stop_reason = None
+        try:
+            for _ in range(num_rounds):
+                if not any(seat.bankroll >= self.rules.min_bet for seat in self._seats):
+                    break
+                self.play_round()
+        except PlayerLeft as left:
+            stop_reason = f"{left.player_name} left the table"
+        except KeyboardInterrupt:
+            stop_reason = "interrupted"
         final_bankrolls = MappingProxyType({seat.player.name: seat.bankroll for seat in self._seats})
         for watcher in self.watchers:
-            watcher.end(final_bankrolls)
+            watcher.end(final_bankrolls, stop_reason)
 
     def play_round(self) -> dict[str, RoundResult]:
-        """Play one round and return each participating player's result, by name."""
-        self._round_no += 1
-        self.shoe.shuffle_if_low()
+        """Play one round and return each participating player's result, by name.
 
+        If the round is stopped part-way (a player leaves, Ctrl+C, or an error),
+        it is cancelled: every bankroll goes back to what it was before the round,
+        and the exception is passed on.
+        """
+        self._round_no += 1
+        self._bankrolls_before_round = {seat: seat.bankroll for seat in self._seats}
+        try:
+            results = self._play_round_steps()
+        except BaseException:  # includes Ctrl+C (KeyboardInterrupt)
+            self._cancel_round()
+            raise
+        self._bankrolls_before_round = None  # the round is complete and logged
+        for seat in self._playing:
+            seat.player.round_over(results[seat.player.name])
+        return results
+
+    def _play_round_steps(self) -> dict[str, RoundResult]:
+        self.shoe.shuffle_if_low()
         self._playing = self._take_bets()
         if not self._playing:
             return {}
@@ -90,9 +119,18 @@ class Table:
         read_only_results = MappingProxyType(results)
         for watcher in self.watchers:
             watcher.round_end(self._round_no, tuple(self._dealer.cards), self._dealer.total, read_only_results)
-        for seat in self._playing:
-            seat.player.round_over(results[seat.player.name])
         return results
+
+    def _cancel_round(self) -> None:
+        """Undo an unfinished round: everyone gets back what they had before it."""
+        if self._bankrolls_before_round is None:
+            return
+        for seat, bankroll in self._bankrolls_before_round.items():
+            seat.bankroll = bankroll
+            seat.hands = []
+        self._bankrolls_before_round = None
+        for watcher in self.watchers:
+            watcher.round_cancelled(self._round_no)
 
     # ----- round steps -----
 
@@ -103,6 +141,8 @@ class Table:
             if seat.bankroll < self.rules.min_bet:
                 continue  # can't afford to play; sits this round out
             bet = seat.player.place_bet(BettingView(seat.bankroll, self.rules.min_bet, self.rules.max_bet))
+            if bet is None:
+                raise PlayerLeft(seat.player.name)
             self._check_bet(seat, bet)
             seat.bankroll -= bet
             seat.hands = [Hand(bet)]

@@ -34,6 +34,14 @@ class IllegalActionError(ValueError):
     """A player chose an action that isn't in legal_actions."""
 
 
+class PlayerLeft(Exception):
+    """Raised by the table when a player leaves (place_bet returned None). Ends the session."""
+
+    def __init__(self, player_name: str):
+        super().__init__(f"{player_name} left the table")
+        self.player_name = player_name
+
+
 @dataclass(frozen=True)
 class BettingView:
     """What a player sees when asked for a bet."""

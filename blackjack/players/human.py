@@ -11,10 +11,12 @@ def _cards(cards) -> str:
 
 
 class HumanPlayer(Player):
-    def place_bet(self, view: BettingView) -> int:
+    def place_bet(self, view: BettingView) -> int | None:
         highest = view.bankroll if view.max_bet is None else min(view.bankroll, view.max_bet)
         while True:
-            text = input(f"\n{self.name}, you have {view.bankroll}. Your bet ({view.min_bet}-{highest}): ")
+            text = input(f"\n{self.name}, you have {view.bankroll}. Your bet ({view.min_bet}-{highest}, q to quit): ")
+            if text.strip().lower() == "q":
+                return None  # leave the table; this ends the session
             if text.strip().isdigit() and view.min_bet <= int(text) <= highest:
                 return int(text)
             print(f"Please enter a whole number from {view.min_bet} to {highest}.")
